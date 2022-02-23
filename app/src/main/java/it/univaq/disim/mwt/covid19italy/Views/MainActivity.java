@@ -1,10 +1,12 @@
 package it.univaq.disim.mwt.covid19italy.Views;
 
+import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
@@ -12,12 +14,17 @@ import android.view.MenuItem;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProviders;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 
 import java.util.ArrayList;
@@ -25,7 +32,9 @@ import java.util.ArrayList;
 import it.univaq.disim.mwt.covid19italy.Data.DatabaseService;
 import it.univaq.disim.mwt.covid19italy.Data.Provincia;
 import it.univaq.disim.mwt.covid19italy.Dialogs.ExitDialog;
+import it.univaq.disim.mwt.covid19italy.Dialogs.PermissionDialog;
 import it.univaq.disim.mwt.covid19italy.R;
+import it.univaq.disim.mwt.covid19italy.Utils.EnableGPSdialog;
 import it.univaq.disim.mwt.covid19italy.ViewModels.ProvinceViewModel;
 
 
@@ -52,6 +61,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
         locationClient = LocationServices.getFusedLocationProviderClient(this);
+        checkPermissions();
         ProvinceViewModel provider = ViewModelProviders.of(this).get(ProvinceViewModel.class);
 
         setContentView(R.layout.activity_main);
@@ -146,6 +156,47 @@ public class MainActivity extends AppCompatActivity {
                 }
                 return;
             }
+        }
+    }
+
+    private void checkPermissions(){
+        if(ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED){
+            //Controllo se il gps è acceso
+            final LocationManager service = (LocationManager) getSystemService(LOCATION_SERVICE);
+            boolean isEnabled = service.isProviderEnabled(LocationManager.GPS_PROVIDER);
+            if(isEnabled){
+                //creo la richiesta per la localizzazione
+                final LocationRequest locationRequest = LocationRequest.create();
+                locationRequest.setInterval(60000);
+                locationRequest.setFastestInterval(30000);
+                locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+                //creo la funzione di callback da utilizzare nell'aggiornamento della posizione
+                final LocationCallback locationCallback = new LocationCallback(){
+                    @Override
+                    public void onLocationResult(LocationResult locationresult){
+                        if(locationresult == null){
+                            return;
+                        }
+                    }
+                };
+                //aggiorno la posizione
+                locationClient.requestLocationUpdates(locationRequest, locationCallback, null);
+            } else {
+                //se il gps è disattivato mostro il dialog per l'attivazione
+                System.out.println("il gps non è attivo");
+                new EnableGPSdialog().show(getSupportFragmentManager(),"nogps");
+            }
+        }
+        else{
+            if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)) {
+                // Show an explanation to the user *asynchronously*
+                new PermissionDialog().show(getSupportFragmentManager(),"permission");
+            } else {
+                // No explanation needed; request the permission
+                ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_LOCATION);
+            }
+
         }
     }
 
